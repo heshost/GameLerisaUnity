@@ -1,0 +1,92 @@
+﻿using DitzeGames.MobileJoystick;
+using Photon.Pun;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace lerisa
+{
+    public class Control : MonoBehaviourPunCallbacks
+    {
+        //input untuk control
+        protected Joystick Joystick;
+        protected Button JumpButton;
+        protected Button ShootButton;
+        protected Button CarButton;
+        protected TouchField TouchField;
+        public Play Player;
+      
+
+        protected const float RotationSpeed = 10;
+
+        //Camera Controll
+        public Vector3 CameraPivot;
+        public float CameraDistance;
+
+        //untuk rotasi
+        protected float InputRotationX;     // rentang = 0 - 360 derajat
+        protected float InputRotationY;     // rentang = 90 - (-90) derajat
+
+        protected Vector3 CharacterPivot;
+        protected Vector3 LookDirection;
+
+        protected Vector3 CameraVelocity;
+
+                // Start is called before the first frame update
+        void Start()
+        {
+            Joystick = FindObjectOfType<Joystick>();
+            TouchField = FindObjectOfType<TouchField>();
+            var buttons = new List<Button>(FindObjectsOfType<Button>());
+            JumpButton = buttons.Find(b => b.gameObject.name == "btnJump");
+            ShootButton = buttons.Find(b => b.gameObject.name == "btnShoot");
+            
+            Player = GetComponent<Play>();
+            
+        }
+
+        // Update is called once per frame
+        void Update()
+        {
+            //input control
+            InputRotationX = (InputRotationX + TouchField.TouchDist.x * RotationSpeed * Time.deltaTime) % 360f;    // 360 artinya ga keatas dan ga kebawah 0
+            InputRotationY = Mathf.Clamp(InputRotationY - TouchField.TouchDist.y * RotationSpeed * Time.deltaTime, 0f, 10f); // antara 90 (-90)
+
+            //left dan forward
+            var CharacterForward = Quaternion.AngleAxis(InputRotationX, Vector3.up) * Vector3.forward;      // untuk muter
+            var CharacterLeft = Quaternion.AngleAxis(InputRotationY + 90, Vector3.up) * Vector3.forward;
+
+            //look dan run (arah lari)
+
+            var RunDirection = CharacterForward * (Input.GetAxis("Vertical") + Joystick.AxisNormalized.y) +
+                               CharacterLeft * (Input.GetAxisRaw("Horizontal") + Joystick.AxisNormalized.x);
+            var LookDirection = Quaternion.AngleAxis(InputRotationY, CharacterLeft) * CharacterForward;
+
+            //set player control value
+            Player.Input.RunX = RunDirection.x;
+            Player.Input.RunZ = RunDirection.z;
+            Player.Input.LookX = LookDirection.x;
+            Player.Input.LookZ = LookDirection.z;
+            Player.Input.Jump = JumpButton.Pressed;
+
+            //set variabel pivot
+
+            var CharacterPivot = Quaternion.AngleAxis(InputRotationX, Vector3.up) * CameraPivot;
+
+            //panggil variable dengan startCoroutine
+
+            StartCoroutine(setCamera(LookDirection, CharacterPivot));
+        }
+
+        //jika memakai fungsi startCoroutine maka methode yang diset memakai IEnumerator untuk return nilai value
+        private IEnumerator setCamera(Vector3 LookDirection, Vector3 CharacterPivot)
+        {
+            // nunggu fixed update excute di script player
+            yield return new WaitForFixedUpdate();
+
+            // set nilai value camera
+            Camera.main.transform.position = (transform.position + CharacterPivot) - LookDirection * CameraDistance;
+            Camera.main.transform.rotation = Quaternion.LookRotation(LookDirection, Vector3.up);
+        }
+    }
+}
